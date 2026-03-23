@@ -1,0 +1,31 @@
+﻿# --- OS Files ---
+.DS_Store
+Thumbs.db
+
+# --- IDE Files ---
+.vscode/
+.idea/
+
+# --- Environment Secrets ---
+.env
+*.env
+.env.*
+!.env.example
+
+# --- Frontend (React/Vite) ---
+frontend/node_modules/
+frontend/dist/
+frontend/.npm/
+
+# --- Backend (Python/FastAPI) ---
+backend/__pycache__/
+backend/*.pyc
+backend/*.pyo
+backend/venv/
+backend/.venv/
+backend/env/
+backend/storage/pdfs/
+
+# --- Database ---
+postgres_data/
+redis_data/
