@@ -14,41 +14,41 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const form = new URLSearchParams()
-    // FastAPI/OAuth2 usually expects 'username', which you have correctly
     form.append('username', email) 
     form.append('password', password)
 
-    // 1. Get the token
-    const { data } = await api.post('/auth/login', form, { 
+    // 1. Send login request. The backend will now attach the secure HttpOnly cookie automatically.
+    await api.post('/auth/login', form, { 
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' } 
     })
 
-    // 2. Save token FIRST
-    localStorage.setItem('token', data.access_token)
-
-    // 3. CRITICAL: Manually set the header for the next immediate call
-    // This ensures '/auth/me' doesn't fail with a 401
-    api.defaults.headers.common['Authorization'] = `Bearer ${data.access_token}`
+    // NOTE: We no longer do localStorage.setItem('token', ...) !
+    // The browser securely holds the token in the background immune to hackers.
 
     try {
-      // 4. Get user details
+      // 2. Fetch user details (the browser automatically sends the cookie here)
       const me = await api.get('/auth/me')
       localStorage.setItem('user', JSON.stringify(me.data))
       setUser(me.data)
       return me.data
     } catch (err) {
-      // If fetching 'me' fails, clean up to prevent a half-logged-in state
-      logout()
+      // If fetching 'me' fails, force a clean logout
+      await logout()
       throw err
     }
   }
 
-  const logout = () => { 
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
-    // Clear the global axios header
-    delete api.defaults.headers.common['Authorization']
-    setUser(null) 
+  const logout = async () => { 
+    try {
+      // Tell backend to destroy the secure cookie
+      await api.post('/auth/logout')
+    } catch (err) {
+      console.error("Logout error", err)
+    } finally {
+      localStorage.removeItem('user')
+      setUser(null) 
+      window.location.href = '/login'
+    }
   }
 
   return (

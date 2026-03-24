@@ -14,7 +14,8 @@
     "react-router-dom": "^6.26.2",
     "axios": "^1.7.7",
     "react-hot-toast": "^2.4.1",
-    "date-fns": "^3.6.0"
+    "date-fns": "^3.6.0",
+    "react-to-print": "^2.15.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",

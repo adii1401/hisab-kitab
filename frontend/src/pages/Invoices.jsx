@@ -1,6 +1,8 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useState, useRef } from 'react';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
+import { useReactToPrint } from 'react-to-print';
+import InvoicePDF from '../components/InvoicePDF'; // Assuming you saved the template here
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -36,11 +38,33 @@ export default function Invoices() {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
 
+  // --- PDF PRINTING LOGIC ---
+  const printRef = useRef();
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+
+  const handlePrint = useReactToPrint({
+    content: () => printRef.current,
+    documentTitle: selectedInvoice ? `Invoice_${selectedInvoice.eway_bill_no || 'Document'}` : 'Invoice',
+    onAfterPrint: () => setSelectedInvoice(null), // Clear memory after printing
+  });
+
+  const triggerPrint = (invoice) => {
+    setSelectedInvoice(invoice);
+    // Give React 100ms to load the invoice data into the hidden PDF template before popping the print window
+    setTimeout(() => {
+      handlePrint();
+    }, 100);
+  };
+  // -------------------------
+
   const load = () => {
     setLoading(true);
     api.get('/invoices')
        .then(r => setInvoices(r.data))
-       .catch(err => console.error(err))
+       .catch(err => {
+         console.error(err);
+         toast.error("Failed to load invoices");
+       })
        .finally(() => setLoading(false));
   };
 
@@ -63,7 +87,7 @@ export default function Invoices() {
       setShowModal(false);
       load();
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Error creating invoice');
+      toast.error(err.response?.data?.detail || 'Error creating invoice. Check data.');
     } finally { 
       setSaving(false); 
     }
@@ -101,6 +125,7 @@ export default function Invoices() {
                   <th>Sell Rate</th>
                   <th>Buy Rate</th>
                   <th>Total Bill</th>
+                  <th style={{textAlign: 'center'}}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -110,13 +135,31 @@ export default function Invoices() {
                     <td>{inv.trip_date}</td>
                     <td>{inv.vehicle_no}</td>
                     <td>
-                        <div style={{fontSize: '0.85rem'}}>{inv.mill_name}</div>
-                        <div style={{fontSize: '0.75rem', color: 'var(--ink-3)'}}>{inv.vendor_name}</div>
+                        {/* FIXED: Added fallback for flat or nested backend response */}
+                        <div style={{fontSize: '0.85rem'}}>{inv.mill?.name || inv.mill_name || 'Unknown Mill'}</div>
+                        <div style={{fontSize: '0.75rem', color: 'var(--ink-3)'}}>{inv.vendor?.name || inv.vendor_name || 'Unknown Vendor'}</div>
                     </td>
                     <td>{inv.loaded_weight_kg} kg</td>
                     <td>₹{inv.mill_default_rate_per_kg}</td>
                     <td>₹{inv.vendor_rate_per_kg}</td>
                     <td style={{fontWeight: 600}}>{fmt(inv.mill_total_amount)}</td>
+                    <td style={{textAlign: 'center'}}>
+                       {/* PDF Print Button added here */}
+                       <button 
+                          onClick={() => triggerPrint(inv)}
+                          style={{
+                            background: '#1a1a1a', 
+                            color: 'white', 
+                            padding: '4px 8px', 
+                            borderRadius: '4px', 
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            border: 'none'
+                          }}
+                        >
+                          🖨️ PDF
+                        </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -227,6 +270,12 @@ export default function Invoices() {
           </div>
         </div>
       )}
+
+      {/* --- HIDDEN PRINT TEMPLATE --- */}
+      <div style={{ display: 'none' }}>
+        <InvoicePDF ref={printRef} invoiceData={selectedInvoice} />
+      </div>
+
     </div>
   );
 }
