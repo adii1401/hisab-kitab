@@ -23,7 +23,7 @@ class UserRole(str, enum.Enum):
 class TripStatus(str, enum.Enum):
     pickup   = "pickup"
     received = "received"
-    delivered = "delivered" # Added for settled logistics
+    delivered = "delivered" 
     settled  = "settled"
 
 class PaymentMode(str, enum.Enum):
@@ -135,22 +135,28 @@ class Trip(Base):
     mill_id                  = Column(UUID(as_uuid=True), ForeignKey("mills.id"), nullable=False, index=True)
     vehicle_no               = Column(String(20), nullable=False)
     driver_name              = Column(String(100), nullable=True)
-    driver_phone             = Column(String(20), nullable=True) # Added for coordination
+    driver_phone             = Column(String(20), nullable=True)
     tare_weight_kg           = Column(Numeric(12, 2), nullable=False, default=Decimal("0.00"))
-    loaded_weight_kg         = Column(Numeric(12, 2), nullable=False) # Represents Net Weight from Mill
+    loaded_weight_kg         = Column(Numeric(12, 2), nullable=False)
     vendor_rate_per_kg       = Column(Numeric(10, 4), nullable=False)
     mill_default_rate_per_kg = Column(Numeric(10, 4), nullable=False)
-    hsn_code                 = Column(String(10), nullable=False, default="47079000") # Standardized
+    hsn_code                 = Column(String(10), nullable=False, default="47079000")
     gst_percent              = Column(Numeric(5, 2), nullable=False, default=Decimal("5.00"))
     advance_paid_to_vendor   = Column(Numeric(14, 2), nullable=False, default=Decimal("0.00"))
     freight_cost             = Column(Numeric(14, 2), nullable=False, default=Decimal("0.00"))
     eway_bill_no             = Column(String(20), nullable=True)
     
-    # --- NEW: E-WAY BILL & LOGISTICS TRACKING FIELDS ---
+    # --- E-WAY BILL & LOGISTICS TRACKING FIELDS ---
     transaction_type         = Column(String(50), nullable=False, default="regular")
     dispatch_pincode         = Column(String(10), nullable=True)
     ship_to_pincode          = Column(String(10), nullable=True)
-    # ---------------------------------------------------
+
+    # --- FINANCIAL COLUMNS (Replaced Properties) ---
+    mill_base_amount         = Column(Numeric(14, 2), nullable=True)
+    mill_gst_amount          = Column(Numeric(14, 2), nullable=True)
+    mill_total_amount        = Column(Numeric(14, 2), nullable=True)
+    vendor_total_amount      = Column(Numeric(14, 2), nullable=True)
+    our_margin               = Column(Numeric(14, 2), nullable=True)
 
     status                   = Column(Enum(TripStatus), nullable=False, default=TripStatus.pickup, index=True)
     notes                    = Column(Text, nullable=True)
@@ -158,6 +164,7 @@ class Trip(Base):
     created_at               = Column(DateTime(timezone=True), server_default=func.now())
     updated_at               = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     
+    # Relationships
     vendor          = relationship("Vendor", back_populates="trips")
     mill            = relationship("Mill", back_populates="trips")
     created_by_user = relationship("User", back_populates="trips_created", foreign_keys=[created_by])
@@ -165,31 +172,12 @@ class Trip(Base):
     payments        = relationship("Payment", back_populates="trip")
     invoice         = relationship("Invoice", back_populates="trip", uselist=False)
 
-    @property
-    def mill_base_amount(self):
-        return self.loaded_weight_kg * self.mill_default_rate_per_kg
-
-    @property
-    def mill_gst_amount(self):
-        return self.mill_base_amount * self.gst_percent / 100
-
-    @property
-    def mill_total_amount(self):
-        return self.mill_base_amount + self.mill_gst_amount
-
-    @property
-    def vendor_total_amount(self):
-        return self.loaded_weight_kg * self.vendor_rate_per_kg
-
+    # Note: vendor_balance remains a property because it's calculated dynamically based on related Payments
     @property
     def vendor_balance(self):
         paid = sum(p.amount for p in self.payments
                    if p.direction == PaymentDirection.outgoing and p.status == PaymentStatus.confirmed)
-        return max(Decimal("0"), self.vendor_total_amount - paid)
-
-    @property
-    def our_margin(self):
-        return self.mill_base_amount - self.vendor_total_amount - self.freight_cost
+        return max(Decimal("0"), (self.vendor_total_amount or Decimal("0")) - paid)
 
 
 class MillReceipt(Base):
