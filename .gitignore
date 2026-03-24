@@ -29,3 +29,7 @@ backend/storage/pdfs/
 # --- Database ---
 postgres_data/
 redis_data/
+
+# --- Internal / Generated Docs ---
+combined_hisab_code.txt
+*.log
